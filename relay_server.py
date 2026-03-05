@@ -1,21 +1,22 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from collections import defaultdict
+import json
 
 app = FastAPI()
 rooms: dict[str, set[WebSocket]] = defaultdict(set)
 
+@app.get("/")
+def root():
+    return {"ok": True}
+
+@app.get("/stats")
+def stats():
+    return {"rooms": {room: len(clients) for room, clients in rooms.items()}}
+
 @app.post("/ping")
 async def ping(payload: dict = Body(...)):
-    """
-    Recebe um POST e repassa como texto para todos os clientes conectados
-    no WebSocket da sala /ws/{room}.
-    """
     room = str(payload.get("room", "love"))
-    msg = payload.get("message", "")
 
-    # Se quiser mandar o payload inteiro pro receiver (recomendado):
-    # o receiver pode mostrar notificação com base nisso.
-    import json
     text = json.dumps(payload, ensure_ascii=False)
 
     dead = []
@@ -29,16 +30,6 @@ async def ping(payload: dict = Body(...)):
         rooms[room].discard(d)
 
     return {"ok": True, "room": room, "sent_to": len(rooms[room])}
-
-@app.get("/")
-def root():
-    return {"ok": True}
-
-
-@app.get("/stats")
-def stats():
-    return {"rooms": {room: len(clients) for room, clients in rooms.items()}}
-
 
 @app.websocket("/ws/{room}")
 async def ws_room(ws: WebSocket, room: str):
@@ -61,4 +52,3 @@ async def ws_room(ws: WebSocket, room: str):
 
     except WebSocketDisconnect:
         rooms[room].discard(ws)
-
